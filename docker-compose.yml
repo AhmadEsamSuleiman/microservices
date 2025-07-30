@@ -1,0 +1,94 @@
+version: "3.8"
+
+services:
+  mongo:
+    image: mongo:6
+    restart: unless-stopped
+    volumes:
+      - mongo-data:/data/db
+    networks:
+      - backend
+    healthcheck:
+      test: ["CMD", "mongo", "--eval", "db.adminCommand('ping')"]
+      interval: 5s
+      timeout: 2s
+      retries: 5
+      start_period: 10s
+
+  postgres:
+    image: postgres:15
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: demo
+      POSTGRES_PASSWORD: demo
+      POSTGRES_DB: cartdb
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    networks:
+      - backend
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER}"]
+      interval: 5s
+      timeout: 2s
+      retries: 5
+      start_period: 10s
+
+  user-service:
+    build:
+      context: ./services/user-service
+      dockerfile: Dockerfile
+    env_file:
+      - services/user-service/.env
+    depends_on:
+      mongo:
+        condition: service_healthy
+    networks:
+      - backend
+
+  product-service:
+    build:
+      context: ./services/product-service
+      dockerfile: Dockerfile
+    env_file:
+      - services/product-service/.env
+    depends_on:
+      mongo:
+        condition: service_healthy
+    networks:
+      - backend
+
+  cart-service:
+    build:
+      context: ./services/cart-service
+      dockerfile: Dockerfile
+    env_file:
+      - services/cart-service/.env
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - backend
+
+  nginx:
+    image: nginx:stable-alpine
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      user-service:
+        condition: service_started
+      product-service:
+        condition: service_started
+      cart-service:
+        condition: service_started
+    networks:
+      - backend
+
+volumes:
+  mongo-data:
+  pgdata:
+
+networks:
+  backend:
+    driver: bridge

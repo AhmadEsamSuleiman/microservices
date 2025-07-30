@@ -1,0 +1,13 @@
+node_modules/
+package-lock.json
+
+*.env
+
+mongo-data/
+pgdata/
+
+logs/
+*.log
+
+dist/
+build/
